@@ -4,12 +4,15 @@
 #include <fstream>
 #include <cstring>
 #include <vector>
+#include <cmath>
 
 #define BLOCK_SIZE (32 * 1024) // 32kB
 #define N_INODES 256
 #define N_BLOCKS 4096  // for total disk capacity of 128MB
 #define DIRECTORY_SIZE 2048  // BLOCK_SIZE / sizeof(DirectoryEntry
 #define FILENAME_SIZE 15
+#define INODE_BLOCKS 16
+#define MAX_FILE_SIZE (INODE_BLOCKS * BLOCK_SIZE)
 
 //TODO enum
 #define TYPE_FILE 0
@@ -39,7 +42,7 @@ struct Superblock {
         std::cout << "Disk size " << this->diskSize << std::endl;
         std::cout << "Block size " << this->blockSize << std::endl;
         std::cout << "Number of free blocks " << this->nFreeBlocks << std::endl;
-        std::cout << "Number of files " << (int)this->nFiles << std::endl;
+        std::cout << "Number of files " << (int) this->nFiles << std::endl;
     }
 };
 
@@ -83,10 +86,33 @@ struct INode {
     int64_t modifiedTimestamp;
     int64_t accessedTimestamp;
     uint32_t fileSize;
-    uint32_t blocks[16];
+    uint32_t blocks[INODE_BLOCKS];
     uint8_t nLinks;
     uint8_t type;
     bool inUse;
+
+    static INode newFile(uint32_t size, std::vector<uint32_t> blockIdxs) {
+        if (blockIdxs.size() > INODE_BLOCKS) {
+            throw std::invalid_argument("Too many blocks");
+        }
+
+        auto iNode = INode::empty();
+        auto now = getCurrentTimestamp();
+
+        iNode.createdTimestamp = now;
+        iNode.modifiedTimestamp = now;
+        iNode.accessedTimestamp = now;
+        iNode.fileSize = size;
+        iNode.nLinks = 1;
+        iNode.type = TYPE_FILE;
+        iNode.inUse = true;
+
+        for (size_t idx = 0; idx < blockIdxs.size(); idx++) {
+            iNode.blocks[idx] = blockIdxs[idx];
+        }
+
+        return iNode;
+    }
 
     static INode empty() {
         INode inode{};
@@ -117,12 +143,12 @@ struct DirectoryEntry {
     char filename[FILENAME_SIZE]{};
 
     DirectoryEntry() {
-        this->iNodeNumber=0;
+        this->iNodeNumber = 0;
     }
 
     DirectoryEntry(uint8_t iNodeNumber, std::string filename) : iNodeNumber(iNodeNumber) {
         std::strncpy(this->filename, filename.c_str(), FILENAME_SIZE);
-        filename[FILENAME_SIZE-1] = 0;
+        filename[FILENAME_SIZE - 1] = 0;
     }
 };
 
@@ -163,7 +189,7 @@ struct VirtualDisk {
     }
 
     void saveToFile(std::ofstream &file) {
-        file.write(reinterpret_cast<char*>(this), sizeof(VirtualDisk));
+        file.write(reinterpret_cast<char *>(this), sizeof(VirtualDisk));
     }
 
     void createRootDirectory() {
@@ -179,8 +205,78 @@ struct VirtualDisk {
 
     static VirtualDisk *loadFromFile(std::ifstream &file) {
         auto disk = new VirtualDisk();
-        file.read(reinterpret_cast<char*>(disk), sizeof(VirtualDisk));
+        file.read(reinterpret_cast<char *>(disk), sizeof(VirtualDisk));
         return disk;
+    }
+
+    static uint32_t numberOfBlocksNeeded(uint32_t fileSize) {
+        return numberOfFullBlocks(fileSize) + numberOfPartialBlocks(fileSize);
+    }
+
+    static uint32_t numberOfFullBlocks(uint32_t fileSize) {
+        return fileSize / BLOCK_SIZE;
+    }
+
+    static uint32_t numberOfPartialBlocks(uint32_t fileSize) {
+        return (fileSize % BLOCK_SIZE == 0) ? 0 : 1;
+    }
+
+    /**
+     * Save file in the root directory
+     * @param filename filename in the virtual filesystem
+     * @param bytes binary content of the file
+     */
+    void saveFile(std::string &filename, const std::vector<uint8_t> &bytes) {
+        if (filename.length() > FILENAME_SIZE) {
+            throw std::invalid_argument("Filename too long");
+        }
+        if (bytes.size() > MAX_FILE_SIZE) {
+            throw std::invalid_argument("File too large");
+        }
+
+        auto nBlocks = numberOfBlocksNeeded(bytes.size());
+        auto blockIdxs = bitmap.allocateFreeBlocks(nBlocks);
+        saveBytesToBlocks(blockIdxs, bytes);
+        auto iNode = INode::newFile(bytes.size(), blockIdxs);
+        this->insertINode(iNode);
+
+    }
+
+    void saveBytesToBlocks(std::vector<uint32_t> blockIdxs, std::vector<uint8_t> bytes) {
+        auto fileSize = bytes.size();
+        auto nFullBlocks = numberOfFullBlocks(fileSize);
+
+        // Copy full blocks
+        for (size_t blockNum = 0; blockNum < nFullBlocks; blockNum++) {
+            auto blockIdx = blockIdxs[blockNum];
+            auto block = this->blocks[blockIdx].data;
+            auto offset = blockNum * BLOCK_SIZE;
+            std::copy(bytes.begin() + offset, bytes.begin() + offset + BLOCK_SIZE, block);
+        }
+
+        // Copy partial block (last one if any)
+        if (numberOfPartialBlocks(fileSize) > 0) {
+            auto blockIdx = blockIdxs[nFullBlocks];
+            auto block = this->blocks[blockIdx].data;
+            auto offset = nFullBlocks * BLOCK_SIZE;
+            auto sizeToCopy = fileSize - offset;
+            std::copy(bytes.begin() + offset, bytes.begin() + offset + sizeToCopy, block);
+        }
+    }
+
+    /**
+     * Insert i-node into the i-nodes array in the first free spot
+     * @param iNode i-node to insert
+     */
+    void insertINode(INode iNode) {
+        for (size_t idx = 1; idx < N_INODES; idx++) {
+            if (!this->inodes[idx].inUse) {
+                this->inodes[idx] = iNode;
+                return;
+            }
+        }
+
+        throw std::runtime_error("No free i-nodes");
     }
 };
 
@@ -196,7 +292,7 @@ std::vector<uint8_t> readBinaryFile(const std::string &filename) {
     file.seekg(0);
 
     std::vector<uint8_t> buffer(size);
-    file.read(reinterpret_cast<char*>(buffer.data()), size);
+    file.read(reinterpret_cast<char *>(buffer.data()), size);
     file.close();
 
     return buffer;
@@ -204,7 +300,7 @@ std::vector<uint8_t> readBinaryFile(const std::string &filename) {
 
 void saveBinaryFile(const std::string &outputPath, std::vector<uint8_t> &bytes) {
     std::ofstream outputFile(outputPath, std::ios::binary);
-    outputFile.write(reinterpret_cast<char*>(bytes.data()), bytes.size());
+    outputFile.write(reinterpret_cast<char *>(bytes.data()), bytes.size());
     outputFile.close();
 }
 
@@ -250,5 +346,7 @@ int main() {
     auto image = readBinaryFile(imagePath);
     saveBinaryFile(outImagePath, image);
 
+
+    std::cout << 1 / 5 << std::endl;
     return 0;
 }
