@@ -157,7 +157,9 @@ struct DirectoryEntry {
  * The maximum number of files in a directory is determined by filename size and disk block size
  */
 struct Directory {
-    DirectoryEntry entries[DIRECTORY_SIZE];
+    DirectoryEntry entries[DIRECTORY_SIZE]{};
+
+    Directory() = default;
 
     /**
      * Initialize with . and ..
@@ -167,6 +169,17 @@ struct Directory {
         auto dot = DirectoryEntry(selfINodeNumber, ".");
         this->entries[0] = dotdot;
         this->entries[1] = dot;
+    }
+
+    void addEntry(DirectoryEntry newEntry) {
+        for (auto &entry: this->entries) {
+            if (entry.filename[0] == '\0') {
+                entry = newEntry;
+                return;
+            }
+        }
+
+        throw std::runtime_error("Directory full");
     }
 };
 
@@ -192,6 +205,10 @@ struct VirtualDisk {
         file.write(reinterpret_cast<char *>(this), sizeof(VirtualDisk));
     }
 
+    INode rootINode() {
+        return this->inodes[0];
+    }
+
     void createRootDirectory() {
         // TODO use common saveFile method
         auto blockIdx = bitmap.allocateFreeBlocks(1)[0];
@@ -201,6 +218,12 @@ struct VirtualDisk {
 
         std::memcpy(this->blocks[blockIdx].data, &rootDirectory, sizeof(rootDirectory));
         this->inodes[0] = rootINode;
+    }
+
+    static VirtualDisk *initialize() {
+        auto vd = new VirtualDisk();
+        vd->createRootDirectory();
+        return vd;
     }
 
     static VirtualDisk *loadFromFile(std::ifstream &file) {
@@ -226,7 +249,7 @@ struct VirtualDisk {
      * @param filename filename in the virtual filesystem
      * @param bytes binary content of the file
      */
-    void saveFile(std::string &filename, const std::vector<uint8_t> &bytes) {
+    void saveFile(const std::string &filename, const std::vector<uint8_t> &bytes) {
         if (filename.length() > FILENAME_SIZE) {
             throw std::invalid_argument("Filename too long");
         }
@@ -238,9 +261,34 @@ struct VirtualDisk {
         auto blockIdxs = bitmap.allocateFreeBlocks(nBlocks);
         saveBytesToBlocks(blockIdxs, bytes);
         auto iNode = INode::newFile(bytes.size(), blockIdxs);
-        this->insertINode(iNode);
+        auto iNodeNumber = this->insertINode(iNode);
 
+        // add directory entry
+        auto blockIdx = this->rootINode().blocks[0];
+        auto rootDir = this->loadDirectory(blockIdx);
+        auto fileEntry = DirectoryEntry(iNodeNumber, filename);
+        rootDir.addEntry(fileEntry);
+        this->saveDirectory(rootDir, blockIdx);
     }
+
+    Directory loadDirectory(uint32_t blockIdx) {
+        Directory dir;
+        std::memcpy(&dir, this->blocks[blockIdx].data, sizeof(Directory));
+        return dir;
+    }
+
+    void saveDirectory(Directory directory, uint32_t blockIdx) {
+        std::memcpy(this->blocks[blockIdx].data, &directory, sizeof(Directory));
+    }
+
+//    /**
+//     * Read content of a file in root directory
+//     * @param filename
+//     * @return
+//     */
+//    std::vector<uint8_t> readFile(const std::string &filename) {
+//
+//    }
 
     void saveBytesToBlocks(std::vector<uint32_t> blockIdxs, std::vector<uint8_t> bytes) {
         auto fileSize = bytes.size();
@@ -267,12 +315,13 @@ struct VirtualDisk {
     /**
      * Insert i-node into the i-nodes array in the first free spot
      * @param iNode i-node to insert
+     * @return i-node number
      */
-    void insertINode(INode iNode) {
+    uint8_t insertINode(INode iNode) {
         for (size_t idx = 1; idx < N_INODES; idx++) {
             if (!this->inodes[idx].inUse) {
                 this->inodes[idx] = iNode;
-                return;
+                return idx;
             }
         }
 
@@ -344,9 +393,11 @@ int main() {
     auto imagePath = "/home/mgarbowski/Desktop/image.jpeg";
     auto outImagePath = "/home/mgarbowski/Desktop/image2.jpeg";
     auto image = readBinaryFile(imagePath);
-    saveBinaryFile(outImagePath, image);
+    auto disk = VirtualDisk::initialize();
+    disk->saveFile("cat.jpeg", image);
+    std::cout << "saved cat.jpeg to disk" << std::endl;
 
+    delete disk;
 
-    std::cout << 1 / 5 << std::endl;
     return 0;
 }
