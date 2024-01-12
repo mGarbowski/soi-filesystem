@@ -211,8 +211,10 @@ struct VirtualDisk {
         }
     }
 
-    void saveToFile(std::ofstream &file) {
+    void saveToFile(const std::string &path) {
+        std::ofstream file(path);
         file.write(reinterpret_cast<char *>(this), sizeof(VirtualDisk));
+        file.close();
     }
 
     INode rootINode() {
@@ -236,7 +238,8 @@ struct VirtualDisk {
         return vd;
     }
 
-    static VirtualDisk *loadFromFile(std::ifstream &file) {
+    static VirtualDisk *loadFromFile(const std::string &path) {
+        std::ifstream file(path);
         auto disk = new VirtualDisk();
         file.read(reinterpret_cast<char *>(disk), sizeof(VirtualDisk));
         return disk;
@@ -397,39 +400,20 @@ void printStructSizes() {
 }
 
 
-void debugging() {
-    printStructSizes();
-
-    auto virtualDisk = new VirtualDisk();  // exceeds stack size
-    virtualDisk->createRootDirectory();
-    virtualDisk->superblock.nFiles = 15;
-    virtualDisk->superblock.printInfo();
-
-    auto path = "disk.vd";
-    std::ofstream outFile(path, std::ios::binary);
-    virtualDisk->saveToFile(outFile);
-    outFile.close();
-    std::cout << "Saved virtual disk to file " << path << std::endl;
-
-    std::ifstream inFile(path, std::ios::binary);
-    auto diskFromFile = VirtualDisk::loadFromFile(inFile);
-    std::cout << "Loaded virtual disk from file " << path << std::endl;
-    diskFromFile->superblock.printInfo();
-    std::cout << "root inode valid: " << diskFromFile->inodes[0].inUse << std::endl;
-    std::cout << "root block idx: " << diskFromFile->inodes[0].blocks[0] << std::endl;
-
-    delete virtualDisk;
-    delete diskFromFile;
-}
-
 int main() {
     auto imagePath = "/home/mgarbowski/Desktop/image.jpeg";
     auto outImagePath = "/home/mgarbowski/Desktop/image2.jpeg";
+    auto virtualDiskPath = "/home/mgarbowski/Desktop/disk.vd";
     auto image = readBinaryFile(imagePath);
     auto disk = VirtualDisk::initialize();
     disk->saveFile("cat.jpeg", image);
     std::cout << "saved cat.jpeg to disk" << std::endl;
+    disk->saveToFile(virtualDiskPath);
+    std::cout << "saved virtual disk to file" << std::endl;
+    delete disk;
 
+    disk = VirtualDisk::loadFromFile(virtualDiskPath);
+    std::cout << "Loaded virtual disk from file" << std::endl;
     auto imageFromVirtualDisk = disk->readFile("cat.jpeg");
     saveBinaryFile(outImagePath, imageFromVirtualDisk);
     std::cout << "Loaded data from virtual disk and saved to " << outImagePath << std::endl;
