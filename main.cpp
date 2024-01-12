@@ -11,6 +11,9 @@
 #define DIRECTORY_SIZE 2048  // BLOCK_SIZE / sizeof(DirectoryEntry
 #define FILENAME_SIZE 15
 
+#define TYPE_FILE 0
+#define TYPE_DIRECTORY 0
+
 int64_t getCurrentTimestamp() {
     return std::chrono::system_clock::now().time_since_epoch().count();
 }
@@ -60,7 +63,7 @@ public:
                 break;
             }
 
-            if (bitmap.test(idx)) {
+            if (!bitmap.test(idx)) {
                 blockNumbers.push_back(idx);
                 bitmap.set(idx);
             }
@@ -89,10 +92,55 @@ struct INode {
         inode.inUse = false;
         return inode;
     }
+
+    static INode rootINode() {
+        auto iNode = INode::empty();
+        auto now = getCurrentTimestamp();
+        iNode.createdTimestamp = now;
+        iNode.modifiedTimestamp = now;
+        iNode.accessedTimestamp = now;
+        iNode.fileSize = BLOCK_SIZE;
+        iNode.nLinks = 1;
+        iNode.type = TYPE_DIRECTORY;
+        iNode.inUse = true;
+        return iNode;
+    }
 };
 
 struct Block {
     uint8_t data[BLOCK_SIZE];
+};
+
+struct DirectoryEntry {
+    uint8_t iNodeNumber;
+    char filename[FILENAME_SIZE]{};
+
+    DirectoryEntry() {
+        this->iNodeNumber=0;
+    }
+
+    DirectoryEntry(uint8_t iNodeNumber, std::string filename) : iNodeNumber(iNodeNumber) {
+        std::strncpy(this->filename, filename.c_str(), FILENAME_SIZE);
+        filename[FILENAME_SIZE-1] = 0;
+    }
+};
+
+/**
+ * A directory cannot take less than a single disk block
+ * The maximum number of files in a directory is determined by filename size and disk block size
+ */
+struct Directory {
+    DirectoryEntry entries[DIRECTORY_SIZE];
+
+    /**
+     * Initialize with . and ..
+     */
+    Directory(uint8_t selfINodeNumber, uint8_t parentINodeNumber) {
+        auto dotdot = DirectoryEntry(parentINodeNumber, "..");
+        auto dot = DirectoryEntry(selfINodeNumber, ".");
+        this->entries[0] = dotdot;
+        this->entries[1] = dot;
+    }
 };
 
 /**
@@ -118,45 +166,20 @@ struct VirtualDisk {
     }
 
     void createRootDirectory() {
+        // TODO use common saveFile method
+        auto blockIdx = bitmap.allocateFreeBlocks(1)[0];
+        auto rootINode = INode::rootINode();
+        rootINode.blocks[0] = blockIdx;
+        auto rootDirectory = Directory(0, 0);
 
+        std::memcpy(this->blocks[blockIdx].data, &rootDirectory, sizeof(rootDirectory));
+        this->inodes[0] = rootINode;
     }
 
     static VirtualDisk *loadFromFile(std::ifstream &file) {
         auto disk = new VirtualDisk();
         file.read(reinterpret_cast<char*>(disk), sizeof(VirtualDisk));
         return disk;
-    }
-};
-
-struct DirectoryEntry {
-    uint8_t iNodeNumber;
-    char filename[FILENAME_SIZE]{};
-
-    DirectoryEntry() {
-        this->iNodeNumber=0;
-    }
-
-    DirectoryEntry(uint8_t iNodeNumber, std::string filename) : iNodeNumber(iNodeNumber) {
-        std::strncpy(this->filename, filename.c_str(), FILENAME_SIZE);
-        filename[FILENAME_SIZE-1] = 0;
-    }
-};
-
-/**
- * A directory cannot take less than a single disk block
- * The maximum number of files in a directory is determined by filename size and disk block size
- */
-class Directory {
-    DirectoryEntry entries[DIRECTORY_SIZE];
-
-    /**
-     * Initialize with . and ..
-     */
-    Directory(uint8_t selfINodeNumber, uint8_t parentINodeNumber) {
-        auto dotdot = DirectoryEntry(parentINodeNumber, "..");
-        auto dot = DirectoryEntry(selfINodeNumber, ".");
-        this->entries[0] = dotdot;
-        this->entries[1] = dot;
     }
 };
 
@@ -176,6 +199,7 @@ int main() {
     printStructSizes();
 
     auto virtualDisk = new VirtualDisk();  // exceeds stack size
+    virtualDisk->createRootDirectory();
     virtualDisk->superblock.nFiles = 15;
     virtualDisk->superblock.printInfo();
 
@@ -189,6 +213,8 @@ int main() {
     auto diskFromFile = VirtualDisk::loadFromFile(inFile);
     std::cout << "Loaded virtual disk from file " << path << std::endl;
     diskFromFile->superblock.printInfo();
+    std::cout << "root inode valid: " << diskFromFile->inodes[0].inUse << std::endl;
+    std::cout << "root block idx: " << diskFromFile->inodes[0].blocks[0] << std::endl;
 
     delete virtualDisk;
     delete diskFromFile;
