@@ -181,6 +181,16 @@ struct Directory {
 
         throw std::runtime_error("Directory full");
     }
+
+    uint8_t getINodeNumber(const std::string &filename) {
+        for (auto &entry: this->entries) {
+            if (entry.filename == filename) {
+                return entry.iNodeNumber;
+            }
+        }
+
+        throw std::invalid_argument("Not found");
+    }
 };
 
 /**
@@ -245,7 +255,7 @@ struct VirtualDisk {
     }
 
     /**
-     * Save file in the root directory
+     * Save new file in the root directory
      * @param filename filename in the virtual filesystem
      * @param bytes binary content of the file
      */
@@ -281,14 +291,37 @@ struct VirtualDisk {
         std::memcpy(this->blocks[blockIdx].data, &directory, sizeof(Directory));
     }
 
-//    /**
-//     * Read content of a file in root directory
-//     * @param filename
-//     * @return
-//     */
-//    std::vector<uint8_t> readFile(const std::string &filename) {
-//
-//    }
+    /**
+     * Read content of a file in root directory
+     * @param filename
+     * @return
+     */
+    std::vector<uint8_t> readFile(const std::string &filename) {
+        auto rootDir = this->loadDirectory(this->rootINode().blocks[0]);
+        auto fileINode = this->inodes[rootDir.getINodeNumber(filename)];
+        std::vector<uint8_t> bytes(fileINode.fileSize);
+        auto nFullBlocks = VirtualDisk::numberOfFullBlocks(fileINode.fileSize);
+        auto nPartialBlocks = VirtualDisk::numberOfPartialBlocks(fileINode.fileSize);
+
+        // Read full blocks
+        for (uint32_t idx = 0; idx < nFullBlocks; idx++) {
+            auto blockIdx = fileINode.blocks[idx];
+            auto offset = idx * BLOCK_SIZE;
+            auto block = this->blocks[blockIdx].data;
+            std::copy(block, block + BLOCK_SIZE, bytes.begin() + offset);
+        }
+
+        // Read last partial block (if any)
+        if (nPartialBlocks > 0) {
+            auto blockIdx = fileINode.blocks[nFullBlocks];
+            auto block = this->blocks[blockIdx].data;
+            auto offset = nFullBlocks * BLOCK_SIZE;
+            auto blockCopySize = fileINode.fileSize - offset;
+            std::copy(block, block + blockCopySize, bytes.begin() + offset);
+        }
+
+        return bytes;
+    }
 
     void saveBytesToBlocks(std::vector<uint32_t> blockIdxs, std::vector<uint8_t> bytes) {
         auto fileSize = bytes.size();
@@ -397,7 +430,10 @@ int main() {
     disk->saveFile("cat.jpeg", image);
     std::cout << "saved cat.jpeg to disk" << std::endl;
 
-    delete disk;
+    auto imageFromVirtualDisk = disk->readFile("cat.jpeg");
+    saveBinaryFile(outImagePath, imageFromVirtualDisk);
+    std::cout << "Loaded data from virtual disk and saved to " << outImagePath << std::endl;
 
+    delete disk;
     return 0;
 }
