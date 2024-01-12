@@ -11,8 +11,9 @@
 #define DIRECTORY_SIZE 2048  // BLOCK_SIZE / sizeof(DirectoryEntry
 #define FILENAME_SIZE 15
 
+//TODO enum
 #define TYPE_FILE 0
-#define TYPE_DIRECTORY 0
+#define TYPE_DIRECTORY 1
 
 int64_t getCurrentTimestamp() {
     return std::chrono::system_clock::now().time_since_epoch().count();
@@ -184,6 +185,29 @@ struct VirtualDisk {
 };
 
 
+std::vector<uint8_t> readBinaryFile(const std::string &filename) {
+    std::ifstream file(filename, std::ios::binary);
+    if (!file) {
+        throw std::runtime_error("Could not open file " + filename);
+    }
+
+    file.seekg(0, std::ios::end);
+    size_t size = file.tellg();
+    file.seekg(0);
+
+    std::vector<uint8_t> buffer(size);
+    file.read(reinterpret_cast<char*>(buffer.data()), size);
+    file.close();
+
+    return buffer;
+}
+
+void saveBinaryFile(const std::string &outputPath, std::vector<uint8_t> &bytes) {
+    std::ofstream outputFile(outputPath, std::ios::binary);
+    outputFile.write(reinterpret_cast<char*>(bytes.data()), bytes.size());
+    outputFile.close();
+}
+
 void printStructSizes() {
     std::cout << "Sizes:" << std::endl;
     std::cout << "Superblock " << sizeof(Superblock) << std::endl;
@@ -195,7 +219,7 @@ void printStructSizes() {
 }
 
 
-int main() {
+void debugging() {
     printStructSizes();
 
     auto virtualDisk = new VirtualDisk();  // exceeds stack size
@@ -218,5 +242,13 @@ int main() {
 
     delete virtualDisk;
     delete diskFromFile;
+}
+
+int main() {
+    auto imagePath = "/home/mgarbowski/Desktop/image.jpeg";
+    auto outImagePath = "/home/mgarbowski/Desktop/image2.jpeg";
+    auto image = readBinaryFile(imagePath);
+    saveBinaryFile(outImagePath, image);
+
     return 0;
 }
