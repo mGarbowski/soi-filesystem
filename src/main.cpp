@@ -7,60 +7,9 @@
 #include "common.h"
 #include "Superblock.h"
 #include "FreeBlocksBitmap.h"
+#include "INode.h"
 
 
-struct INode {
-    int64_t createdTimestamp;
-    int64_t modifiedTimestamp;
-    int64_t accessedTimestamp;
-    uint32_t fileSize;
-    uint32_t blocks[INODE_BLOCKS];
-    uint8_t nLinks;
-    uint8_t type;
-    bool inUse;
-
-    static INode newFile(uint32_t size, std::vector<uint32_t> blockIdxs) {
-        if (blockIdxs.size() > INODE_BLOCKS) {
-            throw std::invalid_argument("Too many blocks");
-        }
-
-        auto iNode = INode::empty();
-        auto now = getCurrentTimestamp();
-
-        iNode.createdTimestamp = now;
-        iNode.modifiedTimestamp = now;
-        iNode.accessedTimestamp = now;
-        iNode.fileSize = size;
-        iNode.nLinks = 1;
-        iNode.type = TYPE_FILE;
-        iNode.inUse = true;
-
-        for (size_t idx = 0; idx < blockIdxs.size(); idx++) {
-            iNode.blocks[idx] = blockIdxs[idx];
-        }
-
-        return iNode;
-    }
-
-    static INode empty() {
-        INode inode{};
-        inode.inUse = false;
-        return inode;
-    }
-
-    static INode rootINode() {
-        auto iNode = INode::empty();
-        auto now = getCurrentTimestamp();
-        iNode.createdTimestamp = now;
-        iNode.modifiedTimestamp = now;
-        iNode.accessedTimestamp = now;
-        iNode.fileSize = BLOCK_SIZE;
-        iNode.nLinks = 1;
-        iNode.type = TYPE_DIRECTORY;
-        iNode.inUse = true;
-        return iNode;
-    }
-};
 
 struct Block {
     uint8_t data[BLOCK_SIZE];
