@@ -9,11 +9,6 @@
 #define INODE_BLOCKS 16
 #define MAX_FILE_SIZE (INODE_BLOCKS * BLOCK_SIZE)
 
-//TODO enum
-#define TYPE_FILE 0
-#define TYPE_DIRECTORY 1
-
 int64_t getCurrentTimestamp();
-
 
 #endif //SOI_FILESYSTEM_COMMON_H

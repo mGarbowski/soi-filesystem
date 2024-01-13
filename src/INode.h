@@ -5,6 +5,9 @@
 #include <cstdint>
 #include "common.h"
 
+#define TYPE_FILE 0
+#define TYPE_DIRECTORY 1
+
 struct INode {
     int64_t createdTimestamp;
     int64_t modifiedTimestamp;

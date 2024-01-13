@@ -22,7 +22,6 @@ INode VirtualDisk::rootINode() {
 }
 
 void VirtualDisk::createRootDirectory() {
-    // TODO use common saveFile method
     auto blockIdx = bitmap.allocateFreeBlocks(1)[0];
     auto rootINode = INode::rootINode();
     rootINode.blocks[0] = blockIdx;
