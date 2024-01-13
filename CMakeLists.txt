@@ -10,4 +10,6 @@ add_executable(soi_filesystem src/main.cpp
         src/INode.cpp
         src/INode.h
         src/Directory.cpp
-        src/Directory.h)
+        src/Directory.h
+        src/VirtualDisk.cpp
+        src/VirtualDisk.h)
