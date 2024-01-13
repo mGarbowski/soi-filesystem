@@ -108,7 +108,7 @@ int main(int argc, char *argv[]) {
             try {
                 copyFileToVirtualFilesystem(from, to, virtualDiskPath);
             } catch (std::exception &e) {
-                std::cout << e.what();
+                std::cerr << e.what() << std::endl;
             }
 
         } else if (command == "2") {
@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
             try {
                 copyFileFromVirtualFilesystem(from, to, virtualDiskPath);
             } catch (std::exception &e) {
-                std::cout << e.what();
+                std::cerr << e.what() << std::endl;
             }
         } else {
             std::cout << std::endl << "Unknown command" << std::endl;
