@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_executable(soi_filesystem src/main.cpp
         src/common.cpp
+        src/common.h
         src/FreeBlocksBitmap.cpp
         src/FreeBlocksBitmap.h
         src/Superblock.cpp
