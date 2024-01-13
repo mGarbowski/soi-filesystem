@@ -41,6 +41,8 @@ private:
 
     void saveBytesToBlocks(std::vector<uint32_t> blockIdxs, std::vector<uint8_t> bytes);
 
+    std::vector<uint32_t> allocateBlocks(uint32_t nBlocks);
+
     /**
      * Insert i-node into the i-nodes array in the first free spot
      * @param iNode i-node to insert

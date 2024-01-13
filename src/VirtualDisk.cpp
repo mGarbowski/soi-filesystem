@@ -66,7 +66,7 @@ void VirtualDisk::saveFile(const std::string &filename, const std::vector<uint8_
     }
 
     auto nBlocks = numberOfBlocksNeeded(bytes.size());
-    auto blockIdxs = bitmap.allocateFreeBlocks(nBlocks);
+    auto blockIdxs = this->allocateBlocks(nBlocks);
     saveBytesToBlocks(blockIdxs, bytes);
     auto iNode = INode::newFile(bytes.size(), blockIdxs);
     auto iNodeNumber = this->insertINode(iNode);
@@ -147,4 +147,10 @@ uint8_t VirtualDisk::insertINode(INode iNode) {
     }
 
     throw std::runtime_error("No free i-nodes");
+}
+
+std::vector<uint32_t> VirtualDisk::allocateBlocks(uint32_t nBlocks) {
+    auto blockIdxs = this->bitmap.allocateFreeBlocks(nBlocks);
+    this->superblock.nFreeBlocks -= blockIdxs.size();
+    return blockIdxs;
 }
