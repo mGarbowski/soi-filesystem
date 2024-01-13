@@ -1,4 +1,5 @@
-#ifndef SOI_FILESYSTEM_CONSTANTS_H
+#ifndef SOI_FILESYSTEM_COMMON_H
+#define SOI_FILESYSTEM_COMMON_H
 
 #define BLOCK_SIZE (32 * 1024) // 32kB
 #define N_INODES 256
@@ -12,5 +13,7 @@
 #define TYPE_FILE 0
 #define TYPE_DIRECTORY 1
 
-#define SOI_FILESYSTEM_CONSTANTS_H
-#endif //SOI_FILESYSTEM_CONSTANTS_H
+int64_t getCurrentTimestamp();
+
+
+#endif //SOI_FILESYSTEM_COMMON_H
