@@ -8,67 +8,14 @@
 #include "Superblock.h"
 #include "FreeBlocksBitmap.h"
 #include "INode.h"
-
+#include "Directory.h"
 
 
 struct Block {
     uint8_t data[BLOCK_SIZE];
 };
 
-struct DirectoryEntry {
-    uint8_t iNodeNumber;
-    char filename[FILENAME_SIZE]{};
 
-    DirectoryEntry() {
-        this->iNodeNumber = 0;
-    }
-
-    DirectoryEntry(uint8_t iNodeNumber, std::string filename) : iNodeNumber(iNodeNumber) {
-        std::strncpy(this->filename, filename.c_str(), FILENAME_SIZE);
-        filename[FILENAME_SIZE - 1] = 0;
-    }
-};
-
-/**
- * A directory cannot take less than a single disk block
- * The maximum number of files in a directory is determined by filename size and disk block size
- */
-struct Directory {
-    DirectoryEntry entries[DIRECTORY_SIZE]{};
-
-    Directory() = default;
-
-    /**
-     * Initialize with . and ..
-     */
-    Directory(uint8_t selfINodeNumber, uint8_t parentINodeNumber) {
-        auto dotdot = DirectoryEntry(parentINodeNumber, "..");
-        auto dot = DirectoryEntry(selfINodeNumber, ".");
-        this->entries[0] = dotdot;
-        this->entries[1] = dot;
-    }
-
-    void addEntry(DirectoryEntry newEntry) {
-        for (auto &entry: this->entries) {
-            if (entry.filename[0] == '\0') {
-                entry = newEntry;
-                return;
-            }
-        }
-
-        throw std::runtime_error("Directory full");
-    }
-
-    uint8_t getINodeNumber(const std::string &filename) {
-        for (auto &entry: this->entries) {
-            if (entry.filename == filename) {
-                return entry.iNodeNumber;
-            }
-        }
-
-        throw std::invalid_argument("Not found");
-    }
-};
 
 /**
  * Cannot be stored on the stack as blocks by default exceeds stack size
