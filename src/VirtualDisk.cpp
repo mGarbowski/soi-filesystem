@@ -30,6 +30,8 @@ void VirtualDisk::createRootDirectory() {
 
     std::memcpy(this->blocks[blockIdx].data, &rootDirectory, sizeof(rootDirectory));
     this->inodes[0] = rootINode;
+
+    this->superblock.nFiles++;
 }
 
 VirtualDisk *VirtualDisk::initialize() {
@@ -64,6 +66,8 @@ void VirtualDisk::saveFile(const std::string &filename, const std::vector<uint8_
     if (bytes.size() > MAX_FILE_SIZE) {
         throw std::invalid_argument("File too large");
     }
+
+    this->superblock.nFiles++;
 
     auto nBlocks = numberOfBlocksNeeded(bytes.size());
     auto blockIdxs = this->allocateBlocks(nBlocks);
