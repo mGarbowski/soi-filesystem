@@ -7,6 +7,8 @@ add_executable(soi_filesystem src/main.cpp
         src/common.cpp
         src/FreeBlocksBitmap.cpp
         src/FreeBlocksBitmap.h
+        src/Superblock.cpp
+        src/Superblock.h
         src/INode.cpp
         src/INode.h
         src/Directory.cpp
