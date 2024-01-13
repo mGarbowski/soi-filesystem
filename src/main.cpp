@@ -1,7 +1,6 @@
 #include <iostream>
 #include <bitset>
 #include <fstream>
-#include <cstring>
 #include <vector>
 
 #include "common.h"

@@ -16,7 +16,8 @@ struct Block {
 /**
  * Cannot be stored on the stack as blocks by default exceeds stack size
  */
-struct VirtualDisk {
+class VirtualDisk {
+private:
     Superblock superblock;
     FreeBlocksBitmap bitmap;
     INode inodes[N_INODES]{};
@@ -24,15 +25,9 @@ struct VirtualDisk {
 
     VirtualDisk();
 
-    void saveToFile(const std::string &path);
-
     INode rootINode();
 
     void createRootDirectory();
-
-    static VirtualDisk *initialize();
-
-    static VirtualDisk *loadFromFile(const std::string &path);
 
     static uint32_t numberOfBlocksNeeded(uint32_t fileSize);
 
@@ -40,23 +35,9 @@ struct VirtualDisk {
 
     static uint32_t numberOfPartialBlocks(uint32_t fileSize);
 
-    /**
-     * Save new file in the root directory
-     * @param filename filename in the virtual filesystem
-     * @param bytes binary content of the file
-     */
-    void saveFile(const std::string &filename, const std::vector<uint8_t> &bytes);
-
     Directory loadDirectory(uint32_t blockIdx);
 
     void saveDirectory(Directory directory, uint32_t blockIdx);
-
-    /**
-     * Read content of a file in root directory
-     * @param filename
-     * @return
-     */
-    std::vector<uint8_t> readFile(const std::string &filename);
 
     void saveBytesToBlocks(std::vector<uint32_t> blockIdxs, std::vector<uint8_t> bytes);
 
@@ -66,6 +47,29 @@ struct VirtualDisk {
      * @return i-node number
      */
     uint8_t insertINode(INode iNode);
+
+public:
+
+    /**
+     * Save new file in the root directory
+     * @param filename filename in the virtual filesystem
+     * @param bytes binary content of the file
+     */
+    void saveFile(const std::string &filename, const std::vector<uint8_t> &bytes);
+
+    /**
+     * Read content of a file in root directory
+     * @param filename
+     * @return
+     */
+    std::vector<uint8_t> readFile(const std::string &filename);
+
+    void saveToFile(const std::string &path);
+
+    static VirtualDisk *initialize();
+
+    static VirtualDisk *loadFromFile(const std::string &path);
+
 };
 
 
